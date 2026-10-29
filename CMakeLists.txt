@@ -1,0 +1,25 @@
+cmake_minimum_required(VERSION 3.16)
+project(FLWorldRender CXX C)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+file(GLOB ZLIB_SOURCES shared/util/zlib/*.c)
+add_library(rtzlib STATIC ${ZLIB_SOURCES})
+target_include_directories(rtzlib PUBLIC shared/util/zlib)
+if(MSVC)
+	target_compile_definitions(rtzlib PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
+endif()
+
+file(GLOB_RECURSE APP_SOURCES source/*.cpp shared/Renderer/*.cpp shared/util/*.cpp)
+add_executable(FLWorldRender ${APP_SOURCES})
+target_include_directories(FLWorldRender PRIVATE source shared)
+target_link_libraries(FLWorldRender PRIVATE rtzlib)
+
+if(MSVC)
+	target_compile_definitions(FLWorldRender PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+	target_compile_options(FLWorldRender PRIVATE /W3 /utf-8)
+	#set_property(TARGET FLWorldRender PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+else()
+	target_compile_options(FLWorldRender PRIVATE -Wall -Wextra -Wno-unused-parameter)
+endif()
