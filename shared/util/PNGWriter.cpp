@@ -19,6 +19,7 @@ static void WriteChunk(vector<byte> &file, const char *pType, const vector<byte>
 	PutBigEndian(file, (uint32)crc);
 }
 
+//minimal PNG writer, RGBA 8 bit, one IDAT.  No libpng on purpose
 bool SaveSurfaceAsPNG(const SoftSurface &surf, const string &fileName)
 {
 	int width = surf.GetWidth();

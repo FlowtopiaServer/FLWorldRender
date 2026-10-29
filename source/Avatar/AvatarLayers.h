@@ -19,6 +19,7 @@ struct AvatarLayer
 	int srcX = 0, srcY = 0, srcW = 32, srcH = 32;
 };
 
+//Credit: setplannergt.com
 const int C_AVATAR_CANVAS_SIZE = 128;
 const int C_AVATAR_ORIGIN_X = 48;
 const int C_AVATAR_ORIGIN_Y = 48;

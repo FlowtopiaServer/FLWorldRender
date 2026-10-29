@@ -41,6 +41,7 @@ private:
 	bool m_bOverflow;
 };
 
+//RTWR v2, written by .tools/scene-export.  Format is in 14-handoff
 bool WorldScene::Load(const string &fileName)
 {
 	vector<byte> data;

@@ -12,16 +12,22 @@ const byte C_LOGO_ALPHA = 229;
 const float C_TREE_SIZE = 38;
 const float C_TREE_OFFSET_X = 1;
 const float C_FRUIT_SIZE = 10;
+const float C_AVATAR_BAR_X = -42.28f; //2026-10-28 footer grid search on 1ETUU (scale 1.58-1.62 tie, avatar error 18.5 -> 9.6)
+const float C_AVATAR_BAR_Y = -34.52f;
+const float C_AVATAR_BAR_SCALE = 1.60f;
 const float C_BOTTOM_BAR_HEIGHT = 100;
-const byte C_BOTTOM_BAR_ALPHA = 179;
+const byte C_BOTTOM_BAR_ALPHA = 195; //opaque output: fitted on 1ETUU as the official looks on a dark page (its png keeps alpha 202)
+
 const uint16 C_TILE_FLAG_FLIPPED = 0x0020;
 const uint16 C_TILE_FLAG_WATER = 0x0400;
 const uint16 C_TILE_FLAG_FIRE = 0x1000;
 const uint16 C_TILE_FLAG_RED = 0x2000;
 const uint16 C_TILE_FLAG_GREEN = 0x4000;
 const uint16 C_TILE_FLAG_BLUE = 0x8000;
+
 const uint16 C_ITEM_GEMS = 112;
 const uint16 g_lockItems[] = { 202, 204, 206, 242, 1796, 4428, 7188 };
+
 const int g_smartEdgeLUT[256] =
 {
 	12, 0, 11, 0, 0, 0, 0, 0, 30, 0, 44, 8, 0, 0, 0, 0, 29, 0, 43, 0, 0, 0, 7, 0, 28, 0, 42, 41, 0, 0, 40, 2,
@@ -33,6 +39,7 @@ const int g_smartEdgeLUT[256] =
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 31, 0, 0, 0, 3, 0, 37, 0, 26, 22, 0, 0, 19, 15,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 17, 14, 0, 0, 13, 0
 };
+
 const int g_smartOuterLUT[16] = { 12, 11, 15, 8, 14, 7, 13, 2, 10, 9, 6, 4, 5, 3, 1, 0 };
 
 static bool IsLock(uint16 id)
@@ -227,7 +234,7 @@ void WorldRender::DrawWeather(const WorldScene &world, SoftSurface &out)
 	const SoftSurface *pCloud = GetTexture("game/cloud.rttex");
 	const SoftSurface *pSun = GetTexture("game/sun.rttex");
 	float sky = m_options.scale / C_DEFAULT_WORLD_SCALE; //cloud and sun spots were measured on a half size render
-	if (pCloud) out.BlitScaled(*pCloud, 1240 * sky, 215 * sky, 0.72f * sky, glColorBytes(255, 255, 255, 180));
+	//no cloud behind the sun: official clouds are random per render and one tucked behind the sun only left a sliver at its edge
 	if (pSun) out.BlitScaled(*pSun, 1121 * sky, 95 * sky, 1.62f * sky);
 	DrawHill(out, 0);
 	DrawHill(out, 1);
@@ -406,7 +413,7 @@ void WorldRender::DrawDroppedStuff(const WorldScene &world, SoftSurface &out)
 void WorldRender::DrawBottomBar(const WorldScene &world, SoftSurface &out)
 {
 	float top = out.GetHeight() - C_BOTTOM_BAR_HEIGHT;
-	out.FillRect(rtRectf(0, top, (float)out.GetWidth(), (float)out.GetHeight()), glColorBytes(0, 0, 0, C_BOTTOM_BAR_ALPHA));
+	out.FillRect(rtRectf(0, top, (float)out.GetWidth(), (float)out.GetHeight()), glColorBytes(0, 0, 0, (byte)CalibrationValue("RTWR_BAR_ALPHA", C_BOTTOM_BAR_ALPHA)));
 
 	const float textScale = 0.4f;
 	const glColorBytes pink(255, 144, 243, 255);
@@ -456,26 +463,54 @@ bool WorldRender::BuildAvatar(const WorldScene &world, const ScenePlayer &player
 	{
 		const SoftSurface *pSheet = NULL;
 		rtRectf src;
-		/** avatar source credit: setplannergt.com*/
 		if (layer.source == AVATAR_SOURCE_SHEET)
 		{
 			pSheet = GetTexture(string("game/") + layer.pSheet);
 			if (!pSheet) continue;
 			if (layer.cellX < 0) src = rtRectf(0, 0, (float)pSheet->GetWidth(), (float)pSheet->GetHeight());
-			else src = rtRectf(layer.cellX * 32.0f, layer.cellY * 32.0f, layer.cellX * 32.0f + 32, layer.cellY * 32.0f + 32);
+			else
+			{
+				float cellLeft = layer.cellX * 32.0f + layer.srcX;
+				float cellTop = layer.cellY * 32.0f + layer.srcY;
+				src = rtRectf(cellLeft, cellTop, cellLeft + layer.srcW, cellTop + layer.srcH);
+			}
 		}
-		else
+		int offsetX = layer.offsetX;
+		int offsetY = layer.offsetY;
+		if (layer.source == AVATAR_SOURCE_CLOTHING)
 		{
 			uint16 id = player.clothing[layer.clothingSlot];
 			const SceneItem *pItem = id ? world.GetItem(id) : NULL;
 			if (!pItem) continue;
 			pSheet = GetTexture("game/" + pItem->texture);
 			if (!pSheet) continue;
-			src = rtRectf(pItem->textureX * 32.0f, pItem->textureY * 32.0f, pItem->textureX * 32.0f + 32, pItem->textureY * 32.0f + 32);
+			//long hand items (player_longhanditem*) are one 64x32 cell, catalog longHandOffset
+			bool bLong = layer.clothingSlot == CLOTHING_HAND && pItem->texture.compare(0, 19, "player_longhanditem") == 0;
+			float cellWidth = bLong ? 64.0f : 32.0f;
+			float cellLeft = (pItem->textureX + layer.cellX) * 32.0f;
+			float cellTop = (pItem->textureY + layer.cellY) * 32.0f;
+			src = rtRectf(cellLeft, cellTop, cellLeft + cellWidth, cellTop + 32);
+			if (bLong)
+			{
+				offsetX = C_LONG_HAND_OFFSET_X;
+				offsetY = C_LONG_HAND_OFFSET_Y;
+			}
 		}
-		float left = (float)(C_AVATAR_ORIGIN_X + layer.offsetX);
-		float top = (float)(C_AVATAR_ORIGIN_Y + layer.offsetY);
-		canvas.BlitEx(*pSheet, src, rtRectf(left, top, left + src.GetWidth(), top + src.GetHeight()), layer.bSkinTint ? skin : glColorBytes(), false, true);
+		float left = (float)(C_AVATAR_ORIGIN_X + offsetX);
+		float top = (float)(C_AVATAR_ORIGIN_Y + offsetY);
+		glColorBytes tint = layer.bSkinTint ? skin : glColorBytes();
+		bool bArmSheet = layer.source == AVATAR_SOURCE_SHEET && layer.cellX < 0;
+		bool bFront = (bArmSheet && layer.offsetX == C_FRONT_ARM_X) || (layer.source == AVATAR_SOURCE_CLOTHING && layer.clothingSlot == CLOTHING_HAND);
+		bool bBack = bArmSheet && layer.offsetX == C_BACK_ARM_X;
+		float angle = bFront ? CalibrationValue("RTWR_ARM_FRONT", C_POSE_FRONT_ARM) : bBack ? CalibrationValue("RTWR_ARM_BACK", C_POSE_BACK_ARM) : 0;
+		if (angle != 0)
+		{
+			float pivotX = C_AVATAR_ORIGIN_X + (bFront ? C_FRONT_ARM_PIVOT_X : C_BACK_ARM_PIVOT_X);
+			float pivotY = C_AVATAR_ORIGIN_Y + C_ARM_PIVOT_Y;
+			canvas.BlitRotated(*pSheet, src, left, top, pivotX, pivotY, angle, tint);
+			continue;
+		}
+		canvas.BlitEx(*pSheet, src, rtRectf(left, top, left + src.GetWidth(), top + src.GetHeight()), tint, false, true);
 	}
 	return true;
 }
@@ -494,26 +529,56 @@ void WorldRender::DrawOwnerBlock(SoftSurface &out, const WorldScene &world, cons
 	const SoftSurface *pFlag = country.empty() ? NULL : GetTexture("interface/flags/" + country + ".rttex");
 	if (pFlag) out.BlitEx(*pFlag, rtRectf(0, 0, (float)pFlag->GetWidth(), (float)pFlag->GetHeight()), rtRectf(x + 33, top + 14, x + 52, top + 27), glColorBytes());
 	m_smallFont.DrawColorCoded(out, x + 54.5f, top + 13.5f, player.name, 0.61f, glColorBytes(73, 252, 0, 255));
-	DrawAvatar(out, world, player, x - 7, top - 15, 2.0f, false);
+	DrawAvatar(out, world, player, x + CalibrationValue("RTWR_AVATAR_X", C_AVATAR_BAR_X), top + CalibrationValue("RTWR_AVATAR_Y", C_AVATAR_BAR_Y),
+		CalibrationValue("RTWR_AVATAR_SCALE", C_AVATAR_BAR_SCALE), false);
 }
 
-//#define DUMP_LAYERS //write each pass to its own png BUT WHY WHY WHY WHY
+//#define DUMP_LAYERS //write each pass to its own png, handy when calibrating against the official image
+
+static void MakeOpaque(SoftSurface &out)
+{
+	byte *pPixels = out.GetPixelData();
+	size_t count = (size_t)out.GetWidth() * out.GetHeight();
+	for (size_t i = 0; i < count; i++)
+	{
+		pPixels[i * 4 + 3] = 255;
+	}
+}
+
+//the official png keeps the bar at alpha 202, so viewers with a light backdrop show it grey; flatten on black
+//so the bar and the bedrock under it read dark everywhere, the way the official looks on its dark page
+static void FlattenOnBlack(SoftSurface &out)
+{
+	byte *pPixels = out.GetPixelData();
+	size_t count = (size_t)out.GetWidth() * out.GetHeight();
+	for (size_t i = 0; i < count; i++)
+	{
+		byte *p = &pPixels[i * 4];
+		float alpha = p[3] / 255.0f;
+		p[0] = (byte)(p[0] * alpha + 0.5f);
+		p[1] = (byte)(p[1] * alpha + 0.5f);
+		p[2] = (byte)(p[2] * alpha + 0.5f);
+		p[3] = 255;
+	}
+}
 
 bool WorldRender::Render(const WorldScene &world, SoftSurface &out)
 {
 	out.Init((int)(world.m_width * TileDrawSize()), (int)(world.m_height * TileDrawSize()));
 	DrawWeather(world, out);
-	//DrawTileShadows(world, out); //note tomorrow: check if it cast shadows in the official renders?
+	//DrawTileShadows(world, out); //bg doesn't cast shadows in the official one?
 	DrawTileLayer(world, out, true);
 	DrawTileShadows(world, out);
 	DrawTileLayer(world, out, false);
 	DrawLiquids(world, out);
+	//the official render leaves dropped items out (1ETUU pair: drops in the map 5 s before, none in the png)
 	MakeOpaque(out); //the official world is alpha 255 everywhere, only the bar lowers it (to 202)
 	if (m_options.sceneW > 0) return CutScene(out);
 	DrawBottomBar(world, out);
+	FlattenOnBlack(out);
 
 #ifdef _DEBUG
-	//LogMsg("Render done, toal %d items in the scene", (int)world.m_items.size());
+	//LogMsg("Render done, %d items in the scene", (int)world.m_items.size());
 #endif
 	return true;
 }

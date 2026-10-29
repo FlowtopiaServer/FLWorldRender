@@ -28,7 +28,7 @@ struct SceneTile
 	uint16 flags = 0;
 	uint32 treeAge = C_NO_TREE_AGE;
 	byte fruitCount = 0;
-	byte frame = 0; //fgcell? open chests yup, dice faces yup, ready providers yup?
+	byte frame = 0; //extra fg cell: open chests, dice faces, ready providers
 };
 
 struct SceneObject

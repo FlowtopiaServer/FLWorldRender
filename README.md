@@ -4,7 +4,7 @@
 
 License:  BSD style attribution, see [LICENSE.md](LICENSE.md)
 
-This is the little command line program behind /renderworld on Flowtopia.  Your server dumps a world into a .rtwr scene file, this reads it and spits out a .png with the sky, hills, blocks, shadows, trees, dropped items and the bar at the bottom with the owner's avatar and flag.
+This is the little command line program behind /renderworld on Flowtopia.  Your server dumps a world into a .rtwr scene file, this reads it and spits out a .png with the sky, hills, blocks, shadows, trees and the bar at the bottom with the owner's avatar and flag.
 
 It's all software rendering.  No GPU, no window, no Proton SDK checkout needed, so it's happy running on a cheap Linux box next to your server.  The art is read straight out of the client's own .rttex files, so nothing from the client is included here, you point it at your own copy.
 
@@ -17,14 +17,20 @@ Features:
 * Block shadows, flipped blocks and painted blocks
 * Trees grow based on their age, ripe ones show their fruit
 * Water and fire
-* Dropped items, gems (by amount) and seeds
 * The bottom bar: "Visit "WORLDNAME" in", the logo, and the owner (plus anyone with access who's in the scene) with their avatar, name and country flag
+* Avatars wear their clothes, long hand items included
 * Can cut out a rect of tiles instead of the whole world
+
+Dropped items aren't drawn, the real /renderworld leaves them out too.  The code for them is still in there (DrawDroppedStuff) if you want them anyway.
 
 Mostly undocumented features:
 
 * Set RTWR_NO_TREES to skip trees
-* RTWR_SHADOW_DX, RTWR_SHADOW_DY and RTWR_SHADOW_ALPHA override the shadow offset and alpha.  Handy when you're comparing against a real render
+* RTWR_SHADOW_DX, RTWR_SHADOW_DY and RTWR_SHADOW_ALPHA override the shadow offset and alpha
+* RTWR_BAR_ALPHA overrides how dark the bottom bar is
+* RTWR_AVATAR_X, RTWR_AVATAR_Y and RTWR_AVATAR_SCALE move and size the avatar in the bar, RTWR_ARM_FRONT and RTWR_ARM_BACK change the arm angles
+
+All of these are handy when you're comparing against a real render.
 
 Oct 29th, 2026 - V1.00 Released
 
@@ -79,7 +85,7 @@ Items:
 
 * uint32 - how many items follow
 
-Only the items the scene uses need to be in here.  That's blocks, backgrounds, trees, dropped stuff, the clothes the players wear and, for trees, the fruit (the item right before the tree's id).  Most of these come straight from items.dat.
+Only the items the scene uses need to be in here.  That's blocks, backgrounds, trees, the clothes the players wear and, for trees, the fruit (the item right before the tree's id).  Most of these come straight from items.dat.
 
 * uint16 - item id
 * string - texture file name, relative to the <b>game</b> folder
@@ -104,7 +110,7 @@ Tiles, width * height of them, row by row from the top left:
 * uint8 - fruit count
 * uint8 - frame, gets added to the texture x for things like open chests and dice faces (version 3+)
 
-Dropped items:
+Dropped items (read, but not drawn):
 
 * uint32 - how many follow
 * uint16 - item id
